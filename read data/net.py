@@ -1,5 +1,6 @@
 from collections import deque
 import numpy as np
+import re
 
 from node import Node
 from activation_funcs import *
@@ -34,7 +35,7 @@ class Net:
             q.extend(diff)
             [qs.add(x) for x in diff]
 
-        return softmax([node.output for node in self.output_nodes])
+        return softmax.calc([node.output for node in self.output_nodes])
 
     def __call__(self, inputs):
         return self.activate(inputs)
@@ -80,15 +81,46 @@ class Net:
             )
 
         for con in genome.connections.values():
-            pre = con.key[0]
-            post = con.key[1]
-
             if con.enabled:
+                pre = con.key[0]
+                post = con.key[1]
                 nodes[pre].add_post(nodes[post], con.weight)
 
         return cls(list(nodes.values()))
 
     @classmethod
-    def from_file(cls):
-        # TODO implement regex from read_data.py here
-        raise NotImplementedError
+    def from_file(cls, path, input_size):
+        nodes = {}
+        for i in range(input_size):
+            key = -(i+1)
+            nodes[key] = Node(key=key)
+        with open(path, 'r') as model_file:
+            lines = model_file.readlines()
+            flag = "node"
+            for line in lines:
+                if "Nodes" in line:
+                    flag = "node"
+                    continue
+                elif "Connections" in line:
+                    flag = "connection"
+                    continue
+
+                if flag == "node":
+                    key = int(re.findall("key=(.*?), b", line)[0])
+                    bias = float(re.findall("bias=(.*?), r", line)[0])
+                    weight = float(re.findall('response=(.*?), ac', line)[0])
+                    activation = re.findall("activation=(.*?), ag", line)[0]
+                    nodes[key] = Node(
+                        key=key,
+                        activation=activation_funcs.get(activation, None)
+                    )
+
+                if flag == "connection":
+                    enabled = bool(re.findall("enabled=(.*)\)", line)[0])
+                    if enabled:
+                        weight = float(re.findall('weight=(.*?),', line)[0])
+                        pre = (int(re.findall("key=\((.*?), ", line)[0]))
+                        post = (int(re.findall("key=.*, (.*?)\), w", line)[0]))
+                        nodes[pre].add_post(nodes[post], weight)
+
+        return cls(list(nodes.values()))

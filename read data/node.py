@@ -11,7 +11,7 @@ class Node:
         self.key = key
         self.pre_nodes = []
         self.post_nodes = []
-        self.activation = activation() if activation else None
+        self.activation = activation
 
         self.input = None  # only used for input nodes
         self.output = 0
@@ -51,7 +51,7 @@ class Node:
             weighted_sum = self.input
 
         # Apply an activation function (e.g., sigmoid)
-        self.output = self.activation(weighted_sum) if self.activation else weighted_sum
+        self.output = self.activation.calc(weighted_sum) if self.activation else weighted_sum
 
         # Forward the output to connected neurons in the next layer
         return self.post_nodes
@@ -68,7 +68,7 @@ class Node:
         elif not self.pre_nodes:  # we are an input node, won't need to update weights
             pass
         else:
-            self.gradient = self.activation.grad(self.output)
+            self.gradient = self.activation.grad(self.output) if self.activation else 1
         # self.gradient = self.error * self.output * (1 - self.output)
 
     def update_weights(self):
