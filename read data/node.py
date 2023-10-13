@@ -58,18 +58,22 @@ class Node:
 
     def calculate_output_error(self):
         # multi-class categorical cross-entropy loss
-        # Calculate the error at this neuron's output
         # self.error = (self.output - self.target) ** 2
-        self.error = - np.sum(self.target * np.log(self.loss))
+        self.error = - np.sum(self.target * np.log(self.output))
 
     def calculate_gradient(self):
         if not self.post_nodes:  # we are an output node
-            self.gradient = np.clip(self.loss, 1e-15, 1 - 1e-15) - self.target
+            self.gradient = self.output - self.target
         elif not self.pre_nodes:  # we are an input node, won't need to update weights
             pass
         else:
-            self.gradient = self.activation.grad(self.output) if self.activation else 1
-        # self.gradient = self.error * self.output * (1 - self.output)
+            if self.activation:
+                weighted_sum = sum(post_node.weights[self] * post_node.gradient for post_node in self.post_nodes)
+                self.gradient = self.error * self.activation.grad(self.output) * weighted_sum
+            else:
+                # If there's no activation function, assume it's linear
+                weighted_sum = sum(post_node.weights[self] * post_node.gradient for post_node in self.post_nodes)
+                self.gradient = self.error * weighted_sum
 
     def update_weights(self):
         # Update weights using gradient descent
