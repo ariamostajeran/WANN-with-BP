@@ -23,6 +23,7 @@ print(genome.size())  # (nodes, connections)
 
 
 net = Net.from_genome(genome, config)
+net.set_learning_rate(0.4)
 
 print('## before training:')
 # for i in range(10):

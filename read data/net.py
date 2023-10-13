@@ -67,6 +67,10 @@ class Net:
                     q.extend(diff)
                     [qs.add(x) for x in diff]
 
+    def set_learning_rate(self, learning_rate):
+        for node in self.nodes:
+            node.learning_rate = learning_rate
+
     @classmethod
     def from_genome(cls, genome, config):
         nodes = {}
