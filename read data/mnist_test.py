@@ -10,9 +10,9 @@ from net import Net
 from utils import *
 
 
-NUM_TRAIN = 10
-NUM_TEST = 10
-TRAIN_EPOCHS = 200
+NUM_TRAIN = 1000
+NUM_TEST = 1000
+TRAIN_EPOCHS = 10
 
 x_train_np, y_train, x_test_np, y_test = mnist.train_images()[:NUM_TRAIN], mnist.train_labels()[:NUM_TRAIN], \
                                       mnist.test_images()[:NUM_TEST], mnist.test_labels()[:NUM_TEST]
@@ -34,7 +34,7 @@ print(genome.size())  # (nodes, connections)
 
 
 net = Net.from_genome(genome, config)
-net.set_learning_rate(1.8)
+net.set_learning_rate(0.1)
 
 print('## before training:')
 for i in range(10):
@@ -59,7 +59,7 @@ outputs = []
 for input in x_train:
     outputs.append(net(input))
 
-matplotlib.use('TkAgg')  # temp fix for Pycharm
+# matplotlib.use('TkAgg')  # temp fix for Pycharm
 plt.plot(loss_list_train, label='Training loss')
 plt.plot(loss_list_test, label='Test loss')
 plt.xlabel('Epoch')
