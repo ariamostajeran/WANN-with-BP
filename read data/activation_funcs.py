@@ -8,8 +8,8 @@ class sigmoid:
 
     @classmethod
     def grad(cls, x):
-        sig_x = cls.calc(x)
-        return sig_x * (1 - sig_x)
+        """Gradient of Sigmoid function. Assumes output has already passed through sigmoid!"""
+        return x * (1 - x)
 
 
 class relu:

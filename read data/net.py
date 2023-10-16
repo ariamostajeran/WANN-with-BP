@@ -1,9 +1,9 @@
 from collections import deque
-import numpy as np
 import re
 
 from node import Node
 from activation_funcs import *
+from utils import *
 
 
 class Net:
@@ -11,18 +11,23 @@ class Net:
         self.nodes = nodes
 
         if self.nodes:
+            self.input_nodes = []
+            self.output_nodes = []
             for node in self.nodes:
                 node.init_weights()
                 node.net = self
-            self.input_nodes = [node for node in self.nodes if not node.pre_nodes]
-            self.output_nodes = [node for node in self.nodes if not node.post_nodes]
+                if not node.pre_nodes:  # input node
+                    self.input_nodes.append(node)
+                elif not node.post_nodes:  # output node
+                    self.output_nodes.append(node)
+                    node.activation = None
 
-    def activate(self, inputs):
-        if len(inputs) != len(self.input_nodes):
-            raise ValueError(f'wrong input shape: expecting {len(self.input_nodes)} but got {len(inputs)}')
+    def _infer(self, x):
+        if len(x) != len(self.input_nodes):
+            raise ValueError(f'wrong input shape: expecting {len(self.input_nodes)} but got {len(x)}')
         q = deque()  # FIFO
         qs = set()
-        for node, input in zip(self.input_nodes, inputs):
+        for node, input in zip(self.input_nodes, x):
             node.input = input
             nxt_set = set(node.forward())
             diff = nxt_set.difference(qs)
@@ -35,27 +40,38 @@ class Net:
             q.extend(diff)
             [qs.add(x) for x in diff]
 
-        return softmax.calc([node.output for node in self.output_nodes])
+        softmax_outputs = softmax.calc([node.output for node in self.output_nodes])
 
-    def __call__(self, inputs):
-        return self.activate(inputs)
+        for i, node in enumerate(self.output_nodes):
+            node.output = softmax_outputs[i]  # done for proper error calculation during backpropagation
 
-    def train(self, inputs, targets, epochs=1, verbose=True):
-        max_target = max(targets)
+        return softmax_outputs
+
+    def activate(self, inputs, batch=False):
+        if batch:
+            return [self._infer(input) for input in inputs]
+        else:
+            return self._infer(inputs)
+
+    def __call__(self, inputs, batch=False):
+        return self.activate(inputs, batch)
+
+    def train(self, x_train, y_train, epochs=1, verbose=True, x_test=None, y_test=None):
+        max_target = max(y_train)
         assert max_target+1 == len(self.output_nodes)
         for epoch in range(epochs):
             if verbose:
                 print(f'training... (epoch {epoch})')
-            for x, y in zip(inputs, targets):
-                loss = self.activate(x)
+            outputs = []
+            for x, y in zip(x_train, y_train):
+                output = self.activate(x)
+                outputs.append(output)
                 y_lst = np.zeros(max_target+1)
                 y_lst[y] = 1
                 q = deque()  # FIFO
                 qs = set()
                 for i, node in enumerate(self.output_nodes):
                     node.target = y_lst[i]
-                    node.loss = loss[i]
-                    node.calculate_output_error()
                     nxt_set = set(node.backward())
                     diff = nxt_set.difference(qs)
                     q.extend(diff)
@@ -66,6 +82,12 @@ class Net:
                     diff = nxt_set.difference(qs)
                     q.extend(diff)
                     [qs.add(x) for x in diff]
+                for node in self.nodes:
+                    node.update_weights()
+            if x_test is not None and y_test is not None:
+                yield loss(outputs, y_train), loss(self.activate(x_test, batch=True), y_test)
+            else:
+                yield loss(outputs, y_train), None
 
     def set_learning_rate(self, learning_rate):
         for node in self.nodes:
