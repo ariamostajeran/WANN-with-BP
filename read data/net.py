@@ -1,5 +1,8 @@
 from collections import deque
 import re
+import pickle
+import os
+import time
 
 from node import Node
 from activation_funcs import *
@@ -7,7 +10,7 @@ from utils import *
 
 
 class Net:
-    def __init__(self, nodes=[]):
+    def __init__(self, nodes=[], config=None):
         self.nodes = nodes
 
         if self.nodes:
@@ -16,11 +19,15 @@ class Net:
             for node in self.nodes:
                 node.init_weights()
                 node.net = self
-                if not node.pre_nodes:  # input node
+                if not node.pre_nodes and \
+                (node.key in config.genome_config.input_keys if config else node.key <= -1):  # input node
                     self.input_nodes.append(node)
-                elif not node.post_nodes:  # output node
+                elif not node.post_nodes and \
+                    (node.key in config.genome_config.output_keys if config else node.key >= 0):  # output node
                     self.output_nodes.append(node)
                     node.activation = None
+                elif not node.pre_nodes or not node.post_nodes:  # orphan
+                    self.nodes.remove(node)
 
     def _infer(self, x):
         if len(x) != len(self.input_nodes):
@@ -48,17 +55,41 @@ class Net:
         return softmax_outputs
 
     def activate(self, inputs, batch=False):
+        """Forward pass"""
         if batch:
             return [self._infer(input) for input in inputs]
         else:
             return self._infer(inputs)
 
-    def __call__(self, inputs, batch=False):
+    def predict(self, inputs, batch=False):
+        """Forward pass. Alias to .activate()"""
         return self.activate(inputs, batch)
 
-    def train(self, x_train, y_train, epochs=1, verbose=True, x_test=None, y_test=None):
+    def __call__(self, inputs, batch=False):
+        """Forward pass"""
+        return self.activate(inputs, batch)
+
+    def train(self, x_train, y_train, epochs=1, verbose=True, save=False, x_test=None, y_test=None):
+        """Train the network. Generator function yielding loss each epoch
+
+        :param x_train: training input data
+        :param y_train: training input labels
+        :param epochs: number of epochs to train for, defaults to 1
+        :type epochs: int, optional
+        :param verbose: Whether to print the start of each epoch, defaults to True
+        :type verbose: bool, optional
+        :param save: Whether to save a checkpoint of this model every 5 epochs, defaults to False
+        :type save: bool, optional
+        :param x_test: test input data if test loss is desired, defaults to None
+        :param y_test: test input labels if test loss is desired, defaults to None
+        :yield: Yields the train loss and the test loss or None
+        :rtype: (float, float or None)
+        """
         max_target = max(y_train)
         assert max_target+1 == len(self.output_nodes)
+        if save:
+            save_dir = f'/models/{int(time.time())}'
+            os.makedirs(save_dir)
         for epoch in range(epochs):
             if verbose:
                 print(f'training... (epoch {epoch})')
@@ -84,6 +115,11 @@ class Net:
                     [qs.add(x) for x in diff]
                 for node in self.nodes:
                     node.update_weights()
+            if save and epoch % 5 == 0:
+                save_path = f'{save_dir}/net_{epoch}.pkl'
+                with open(save_path, 'wb') as file:
+                    print(os.path.join(os.getcwd(), save_path))
+                    pickle.dump(self, file)
             if x_test is not None and y_test is not None:
                 yield loss(outputs, y_train), loss(self.activate(x_test, batch=True), y_test)
             else:
@@ -112,7 +148,7 @@ class Net:
                 post = con.key[1]
                 nodes[pre].add_post(nodes[post], con.weight)
 
-        return cls(list(nodes.values()))
+        return cls(list(nodes.values()), config)
 
     @classmethod
     def from_file(cls, path, input_size):

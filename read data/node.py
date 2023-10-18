@@ -79,7 +79,7 @@ class Node:
             self.weights = self.new_weights
             self.new_weights = {}
         else:
-            raise Exception('No new weights to apply, call .calculate_new_weights() first')
+            raise Exception(f'No new weights to apply for node {self.key}, call .calculate_new_weights() first')
 
     def backward(self):
         self.calculate_gradient()

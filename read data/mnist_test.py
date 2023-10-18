@@ -13,6 +13,8 @@ from utils import *
 NUM_TRAIN = 1000
 NUM_TEST = 1000
 TRAIN_EPOCHS = 10
+SAVE_MODELS = True
+CHECKPOINT = 'neat_pop_4096_1'  # leave empty for test fully-connected network
 
 x_train_np, y_train, x_test_np, y_test = mnist.train_images()[:NUM_TRAIN], mnist.train_labels()[:NUM_TRAIN], \
                                       mnist.test_images()[:NUM_TEST], mnist.test_labels()[:NUM_TEST]
@@ -27,10 +29,22 @@ config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                      neat.DefaultSpeciesSet, neat.DefaultStagnation,
                      os.path.join(os.path.dirname(__file__), 'config.cfg'))
 
-genome = neat.DefaultGenome(69)
-genome.configure_new(config.genome_config)
-genome.connect_full_nodirect(config.genome_config)
-print(genome.size())  # (nodes, connections)
+if CHECKPOINT:
+    pop = neat.Checkpointer.restore_checkpoint(CHECKPOINT).population
+    genome = pop.best_genome
+    config = pop.config
+    print(len(config.genome_config.input_keys))
+    while not genome:
+        print(pop.population.keys())
+        genome = pop.population.get(input('Enter genome key: '))
+else:
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                     neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                     os.path.join(os.path.dirname(__file__), 'config.cfg'))
+    genome = neat.DefaultGenome(69)
+    genome.configure_new(config.genome_config)
+    genome.connect_full_nodirect(config.genome_config)
+    print(genome.size())  # (nodes, connections)
 
 
 net = Net.from_genome(genome, config)
@@ -43,12 +57,10 @@ for i in range(10):
 
 loss_list_train = []
 loss_list_test = []
-for train_loss, test_loss in net.train(x_train, y_train, epochs=TRAIN_EPOCHS, x_test=x_test, y_test=y_test):
+for train_loss, test_loss in net.train(x_train, y_train, epochs=TRAIN_EPOCHS, save=SAVE_MODELS, x_test=x_test, y_test=y_test):
     loss_list_train.append(train_loss)
     loss_list_test.append(test_loss)
     print(f'\tloss: {train_loss}')
-
-# TODO pickle net (checkpoints every x epochs?)
 
 print('## after training:')
 for i in range(10):
