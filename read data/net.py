@@ -1,8 +1,9 @@
-from collections import deque
 import re
 import pickle
 import os
 import time
+
+import neat  # pip install neat-python
 
 from node import Node
 from activation_funcs import *
@@ -20,32 +21,49 @@ class Net:
                 node.init_weights()
                 node.net = self
                 if not node.pre_nodes and \
-                (node.key in config.genome_config.input_keys if config else node.key <= -1):  # input node
+                        (node.key in config.genome_config.input_keys if config else node.key <= -1):  # input node
                     self.input_nodes.append(node)
                 elif not node.post_nodes and \
-                    (node.key in config.genome_config.output_keys if config else node.key >= 0):  # output node
+                        (node.key in config.genome_config.output_keys if config else node.key >= 0):  # output node
                     self.output_nodes.append(node)
                     node.activation = None
                 elif not node.pre_nodes or not node.post_nodes:  # orphan
+                    node.delete()
                     self.nodes.remove(node)
+            self.nodes_forward = self._topological_sort()  # ensure correct ordering of nodes
+            self.nodes_backward = self._topological_sort()[::-1]  # ensure correct ordering of nodes
+
+    def _topological_sort(self):
+        # Ensure that the graph is a DAG! (no cycles)
+        visited = set()
+        stack = []
+
+        def dfs(node):
+            if node not in visited:
+                visited.add(node)
+                for successor in node.post_nodes:
+                    dfs(successor)
+                stack.append(node)
+
+        for input_node in self.input_nodes:
+            dfs(input_node)
+
+        # Reverse the order to get the topological sort
+        return stack[::-1]
 
     def _infer(self, x):
         if len(x) != len(self.input_nodes):
             raise ValueError(f'wrong input shape: expecting {len(self.input_nodes)} but got {len(x)}')
-        q = deque()  # FIFO
-        qs = set()
-        for node, input in zip(self.input_nodes, x):
-            node.input = input
-            nxt_set = set(node.forward())
-            diff = nxt_set.difference(qs)
-            q.extend(diff)
-            [qs.add(x) for x in diff]
-        while len(q) != 0:
-            node = q.popleft()
-            nxt_set = set(node.forward())
-            diff = nxt_set.difference(qs)
-            q.extend(diff)
-            [qs.add(x) for x in diff]
+
+        inputs_done = 0
+        for node in self.nodes_forward:
+            if node in self.input_nodes:
+                i = self.input_nodes.index(node)
+                node.input = x[i]
+                inputs_done += 1
+            node.forward()
+
+        assert inputs_done == len(x)  # sanity check
 
         softmax_outputs = softmax.calc([node.output for node in self.output_nodes])
 
@@ -69,26 +87,24 @@ class Net:
         """Forward pass"""
         return self.activate(inputs, batch)
 
-    def train(self, x_train, y_train, epochs=1, verbose=True, save=False, x_test=None, y_test=None):
+    def train(self, x_train, y_train, epochs=1, lr=0.1, verbose=True, save=False, x_test=None, y_test=None):
         """Train the network. Generator function yielding loss each epoch
 
         :param x_train: training input data
         :param y_train: training input labels
-        :param epochs: number of epochs to train for, defaults to 1
-        :type epochs: int, optional
-        :param verbose: Whether to print the start of each epoch, defaults to True
-        :type verbose: bool, optional
-        :param save: Whether to save a checkpoint of this model every 5 epochs, defaults to False
-        :type save: bool, optional
+        :param int epochs: number of epochs to train for, defaults to 1
+        :param float lr: learning rate, defaults to 0.1
+        :param bool verbose: Whether to print the start of each epoch, defaults to True
+        :param bool save: Whether to save a checkpoint of this model every 5 epochs, defaults to False
         :param x_test: test input data if test loss is desired, defaults to None
         :param y_test: test input labels if test loss is desired, defaults to None
-        :yield: Yields the train loss and the test loss or None
+        :return: Yields the train loss and the test loss or None
         :rtype: (float, float or None)
         """
         max_target = max(y_train)
-        assert max_target+1 == len(self.output_nodes)
+        assert max_target + 1 == len(self.output_nodes)  # sanity check
         if save:
-            save_dir = f'/models/{int(time.time())}'
+            save_dir = f'models/{int(time.time())}'
             os.makedirs(save_dir)
         for epoch in range(epochs):
             if verbose:
@@ -97,37 +113,23 @@ class Net:
             for x, y in zip(x_train, y_train):
                 output = self.activate(x)
                 outputs.append(output)
-                y_lst = np.zeros(max_target+1)
+                y_lst = np.zeros(max_target + 1)
                 y_lst[y] = 1
-                q = deque()  # FIFO
-                qs = set()
-                for i, node in enumerate(self.output_nodes):
-                    node.target = y_lst[i]
-                    nxt_set = set(node.backward())
-                    diff = nxt_set.difference(qs)
-                    q.extend(diff)
-                    [qs.add(x) for x in diff]
-                while len(q) != 0:
-                    node = q.popleft()
-                    nxt_set = set(node.backward())
-                    diff = nxt_set.difference(qs)
-                    q.extend(diff)
-                    [qs.add(x) for x in diff]
-                for node in self.nodes:
+                for node in self.nodes_backward:
+                    if node in self.output_nodes:
+                        i = self.output_nodes.index(node)
+                        assert node.key == i  # sanity check
+                        node.target = y_lst[i]
+                    node.backward(lr)
+                for node in self.nodes_backward:
                     node.update_weights()
             if save and epoch % 5 == 0:
-                save_path = f'{save_dir}/net_{epoch}.pkl'
-                with open(save_path, 'wb') as file:
-                    print(os.path.join(os.getcwd(), save_path))
+                with open(f'{save_dir}/net_{epoch}.pkl', 'wb') as file:
                     pickle.dump(self, file)
             if x_test is not None and y_test is not None:
                 yield loss(outputs, y_train), loss(self.activate(x_test, batch=True), y_test)
             else:
                 yield loss(outputs, y_train), None
-
-    def set_learning_rate(self, learning_rate):
-        for node in self.nodes:
-            node.learning_rate = learning_rate
 
     @classmethod
     def from_genome(cls, genome, config):
@@ -137,9 +139,10 @@ class Net:
             nodes[key] = Node(key=key)
 
         for key, node_neat in genome.nodes.items():  # only includes hidden- and output-nodes
-            nodes[key] = Node(  # TODO add other Node options (bias, etc.)
+            nodes[key] = Node(
                 key=key,
-                activation=activation_funcs.get(node_neat.activation, None)
+                activation=activation_funcs.get(node_neat.activation, None),
+                bias=node_neat.bias
             )
 
         for con in genome.connections.values():
@@ -151,10 +154,22 @@ class Net:
         return cls(list(nodes.values()), config)
 
     @classmethod
+    def from_checkpoint(cls, path):
+        pop = neat.Checkpointer.restore_checkpoint(path).population
+        genome = pop.best_genome
+        config = pop.config
+        while not genome:
+            print('No best_genome found, please enter a genome key from the following selection')
+            print(pop.population.keys())
+            genome = pop.population.get(input('ENTER GENOME KEY: '))
+
+        return cls.from_genome(genome, config)
+
+    @classmethod
     def from_file(cls, path, input_size):
         nodes = {}
         for i in range(input_size):
-            key = -(i+1)
+            key = -(i + 1)
             nodes[key] = Node(key=key)
         with open(path, 'r') as model_file:
             lines = model_file.readlines()
@@ -174,7 +189,8 @@ class Net:
                     activation = re.findall("activation=(.*?), ag", line)[0]
                     nodes[key] = Node(
                         key=key,
-                        activation=activation_funcs.get(activation, None)
+                        activation=activation_funcs.get(activation, None),
+                        bias=bias
                     )
 
                 if flag == "connection":

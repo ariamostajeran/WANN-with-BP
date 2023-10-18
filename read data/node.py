@@ -3,9 +3,9 @@ from reprlib import recursive_repr
 
 
 class Node:
-    def __init__(self, key=None, activation=None, learning_rate=0.1):
+    def __init__(self, key=None, activation=None, bias=0):
         self.weights = {}  # only incoming weights are stored! key=pre_node
-        self.bias = 0  # TODO
+        self.bias = bias
         self.key = key
         self.pre_nodes = []
         self.post_nodes = []
@@ -15,9 +15,9 @@ class Node:
         self.output = 0
         self.target = None  # only used for output nodes
         self.gradient = 0
-        self.learning_rate = learning_rate
         self.net = None
         self.new_weights = {}
+        self.new_bias = None
 
     def add_pre(self, node, weight):
         if node not in self.pre_nodes:
@@ -33,15 +33,21 @@ class Node:
             node.pre_nodes.append(self)
             node.weights[self] = weight
 
+    def delete(self):
+        for node in self.pre_nodes:
+            node.post_nodes.remove(self)
+        for node in self.post_nodes:
+            node.pre_nodes.remove(self)
+            node.weights.pop(self)
+
     def init_weights(self):
         self.weights = {}
         for pre_node in self.pre_nodes:
-            # TODO
+            # TODO set high to 1.0? results seem to decrease if I do...
             self.weights[pre_node] = np.random.uniform(low=0.0, high=0.1)  # random float between 0 and 1
 
     def forward(self):
         # Calculate the weighted sum of inputs
-        # TODO not taking neat aggregation functions into account
         if self.pre_nodes:
             weighted_sum = sum([weight * pre.output for pre, weight in self.weights.items()])
         else:
@@ -52,40 +58,39 @@ class Node:
         # Apply an activation function (e.g., sigmoid)
         self.output = self.activation.calc(weighted_sum) if self.activation else weighted_sum
 
-        # Forward the output to connected neurons in the next layer
-        return self.post_nodes
-
     def calculate_gradient(self):
-        if not self.post_nodes:  # we are an output node
-            self.gradient = self.output - self.target
-        elif not self.pre_nodes:  # we are an input node, won't need to update weights
+        if not self.pre_nodes:  # we are an input node, won't need to update weights
             pass
+        elif not self.post_nodes:  # we are an output node
+            self.gradient = self.output - self.target
         else:
             weighted_sum = sum([post_node.weights[self] * post_node.gradient for post_node in self.post_nodes])
+            weighted_sum += self.bias * self.gradient  # Include bias in the gradient calculation
             if self.activation:
                 self.gradient = self.activation.grad(self.output) * weighted_sum
             else:
                 # If there's no activation function, assume it's linear
                 self.gradient = weighted_sum
 
-    def calculate_new_weights(self):
+    def calculate_new_weights(self, lr):
         # Update weights using gradient descent
+        self.new_bias = self.bias - (lr * self.gradient)  # Update the bias
         self.new_weights = {}
         for pre_node, weight in self.weights.items():
-            self.new_weights[pre_node] = weight - (self.learning_rate * self.gradient * pre_node.output)
+            self.new_weights[pre_node] = weight - (lr * self.gradient * pre_node.output)
 
     def update_weights(self):
-        if self.new_weights or not self.pre_nodes:
+        if (self.new_weights and self.new_bias is not None) or not self.pre_nodes:
             self.weights = self.new_weights
+            self.bias = self.new_bias
             self.new_weights = {}
+            self.new_bias = None
         else:
             raise Exception(f'No new weights to apply for node {self.key}, call .calculate_new_weights() first')
 
-    def backward(self):
+    def backward(self, lr):
         self.calculate_gradient()
-        self.calculate_new_weights()
-
-        return self.pre_nodes
+        self.calculate_new_weights(lr)
 
     @recursive_repr()
     def __repr__(self):
