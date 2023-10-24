@@ -8,6 +8,7 @@ import neat  # pip install neat-python
 from node import Node
 from activation_funcs import *
 from utils import *
+from run_neat import run_neat
 
 
 class Net:
@@ -20,18 +21,19 @@ class Net:
             for node in self.nodes:
                 node.init_weights()
                 node.net = self
-                if not node.pre_nodes and \
-                        (node.key in config.genome_config.input_keys if config else node.key <= -1):  # input node
+                if node.key in config.genome_config.input_keys if config else\
+                        (not node.pre_nodes and node.key <= -1):  # input node
                     self.input_nodes.append(node)
-                elif not node.post_nodes and \
-                        (node.key in config.genome_config.output_keys if config else node.key >= 0):  # output node
+                elif node.key in config.genome_config.output_keys if config else\
+                        (not node.post_nodes and node.key >= 0):  # output node
                     self.output_nodes.append(node)
+                    node.delete(pre_nodes=False, post_nodes=True)
                     node.activation = None
-                elif not node.pre_nodes or not node.post_nodes:  # orphan
+                elif (not node.pre_nodes) or (not node.post_nodes):  # orphan
                     node.delete()
                     self.nodes.remove(node)
             self.nodes_forward = self._topological_sort()  # ensure correct ordering of nodes
-            self.nodes_backward = self._topological_sort()[::-1]  # ensure correct ordering of nodes
+            self.nodes_backward = self.nodes_forward[::-1]  # ensure correct ordering of nodes
 
     def _topological_sort(self):
         # Ensure that the graph is a DAG! (no cycles)
@@ -102,7 +104,7 @@ class Net:
         :rtype: (float, float or None)
         """
         max_target = max(y_train)
-        assert max_target + 1 == len(self.output_nodes)  # sanity check
+        assert max_target + 1 == len(self.output_nodes), f'{max_target + 1} is not {len(self.output_nodes)}'  # sanity check
         if save:
             save_dir = f'models/{int(time.time())}'
             os.makedirs(save_dir)
@@ -155,13 +157,18 @@ class Net:
 
     @classmethod
     def from_checkpoint(cls, path):
-        pop = neat.Checkpointer.restore_checkpoint(path).population
+        # pop = neat.Checkpointer.restore_checkpoint(path).population
+        pop = neat.Checkpointer.restore_checkpoint(path)
         genome = pop.best_genome
         config = pop.config
+        if not genome:
+            genome = run_neat(pop, multithreading=False)
+            print(f'No best_genome found, using genome {genome.key} with highest fitness {genome.fitness}')
+            print(genome)
         while not genome:
             print('No best_genome found, please enter a genome key from the following selection')
             print(pop.population.keys())
-            genome = pop.population.get(input('ENTER GENOME KEY: '))
+            genome = pop.population.get(int(input('ENTER GENOME KEY: ')))
 
         return cls.from_genome(genome, config)
 

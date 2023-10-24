@@ -9,12 +9,12 @@ import matplotlib.pyplot as plt
 from net import Net
 from utils import *
 
-NUM_TRAIN = 10
-NUM_TEST = 10
-TRAIN_EPOCHS = 100
-SAVE_MODELS = True
-# CHECKPOINT = 'neat_pop_4096_1'  # leave empty for test fully-connected network
-CHECKPOINT = None  # leave empty for test fully-connected network
+NUM_TRAIN = 2000
+NUM_TEST = 2000
+TRAIN_EPOCHS = 5
+SAVE_MODELS = False
+CHECKPOINT = 'neat_pop_2011'  # leave empty for test fully-connected network
+# CHECKPOINT = None  # leave empty for test fully-connected network
 
 x_train_np, y_train, x_test_np, y_test = mnist.train_images()[:NUM_TRAIN], mnist.train_labels()[:NUM_TRAIN], \
                                          mnist.test_images()[:NUM_TEST], mnist.test_labels()[:NUM_TEST]
@@ -37,8 +37,6 @@ else:
     print(genome.size())  # (nodes, connections)
     net = Net.from_genome(genome, config)
 
-print([x.key for x in net.nodes_forward])
-print([x.key for x in net.nodes_backward])
 
 print('## before training:')
 for i in range(10):

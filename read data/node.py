@@ -1,5 +1,6 @@
 import numpy as np
 from reprlib import recursive_repr
+import sys
 
 
 class Node:
@@ -33,12 +34,16 @@ class Node:
             node.pre_nodes.append(self)
             node.weights[self] = weight
 
-    def delete(self):
-        for node in self.pre_nodes:
-            node.post_nodes.remove(self)
-        for node in self.post_nodes:
-            node.pre_nodes.remove(self)
-            node.weights.pop(self)
+    def delete(self, pre_nodes=True, post_nodes=True):
+        if pre_nodes:
+            for node in self.pre_nodes:
+                node.post_nodes.remove(self)
+            self.pre_nodes = []
+        if post_nodes:
+            for node in self.post_nodes:
+                node.pre_nodes.remove(self)
+                node.weights.pop(self)
+            self.post_nodes = []
 
     def init_weights(self):
         self.weights = {}
@@ -49,7 +54,7 @@ class Node:
     def forward(self):
         # Calculate the weighted sum of inputs
         if self.pre_nodes:
-            weighted_sum = sum([weight * pre.output for pre, weight in self.weights.items()])
+            weighted_sum = np.clip(sum([weight * pre.output for pre, weight in self.weights.items()]), sys.float_info.min, sys.float_info.max)
         else:
             weighted_sum = self.input
 
@@ -62,12 +67,12 @@ class Node:
         if not self.pre_nodes:  # we are an input node, won't need to update weights
             pass
         elif not self.post_nodes:  # we are an output node
-            self.gradient = self.output - self.target
+            self.gradient = self.output - (self.target if self.target else 0)
         else:
             weighted_sum = sum([post_node.weights[self] * post_node.gradient for post_node in self.post_nodes])
             weighted_sum += self.bias * self.gradient  # Include bias in the gradient calculation
             if self.activation:
-                self.gradient = self.activation.grad(self.output) * weighted_sum
+                self.gradient = np.clip(self.activation.grad(self.output) * weighted_sum, sys.float_info.min, sys.float_info.max)
             else:
                 # If there's no activation function, assume it's linear
                 self.gradient = weighted_sum
