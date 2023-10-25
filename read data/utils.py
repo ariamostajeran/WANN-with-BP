@@ -6,15 +6,15 @@ def loss(preds, targets):
     if len(preds) != len(targets):
         raise ValueError("Number of predictions and targets must be the same.")
 
-    loss = 0
-    for pred, target in zip(preds, targets):
-        # pred is a 1D array of class probabilities
-        # Calculate the categorical cross-entropy for each class
-        class_loss = -np.log(pred[target])
+    return -np.sum(targets * np.log(preds, where=(preds!=0)))
 
-        loss += class_loss
 
-    return loss
+def loss_batch(preds_lst, targets_lst):
+    # categorical crossentropy loss
+    if len(preds_lst) != len(targets_lst):
+        raise ValueError("Number of predictions and targets must be the same.")
+
+    return sum(-np.sum(targets * np.log(preds, where=(preds!=0))) for preds, targets in zip(preds_lst, targets_lst))
 
 
 def accuracy(preds, targets):
