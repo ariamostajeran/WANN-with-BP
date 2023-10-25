@@ -11,11 +11,11 @@ from scipy.ndimage import affine_transform  # pip install scipy
 from net import Net
 from utils import *
 
-NUM_TRAIN = 20
-NUM_TEST = 20
+NUM_TRAIN = 2000
+NUM_TEST = 2000
 TRAIN_EPOCHS = 15
 SAVE_MODELS = False
-PROCESS = False
+PROCESS = True
 # CHECKPOINT = 'neat_pop_1159'  # leave empty for test fully-connected network
 CHECKPOINT = None  # leave empty for test fully-connected network
 
@@ -51,6 +51,7 @@ def prep_dataset():
         else:
             x_train.append(xt.flatten())
     for xt in x_test_np:
+        xt = xt / 255
         if PROCESS:
             x_test.append(
                 ski.transform.resize(deskew(xt), (16, 16), preserve_range=True, anti_aliasing=False).flatten())
