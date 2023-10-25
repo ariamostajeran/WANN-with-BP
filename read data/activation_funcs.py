@@ -4,7 +4,7 @@ import numpy as np
 class sigmoid:
     @classmethod
     def calc(cls, x):
-        return 1 / (1 + np.exp(-x))
+        return 1 / (1 + np.exp(-x)) if x > 0 else np.exp(x) / (1+np.exp(x))
 
     @classmethod
     def grad(cls, x):
@@ -41,12 +41,49 @@ class softmax:  # can be used to convert output to probabilities (in classificat
         return e_x / e_x.sum()
 
     @classmethod
+    def grad(cls, x, k):
+        """x must be a softmax array already!"""
+        # return np.outer(x, 1 - x)
+        grad = -x[k] * (1 - x)
+        grad[k] = x[k] * (1 - x[k])
+        return grad
+
+
+class sin:
+    @classmethod
+    def calc(cls, x):
+        return np.sin(x)
+
+    @classmethod
     def grad(cls, x):
-        raise NotImplementedError
+        return np.cos(x)
+
+
+class identity:
+    @classmethod
+    def calc(cls, x):
+        return x
+
+    @classmethod
+    def grad(cls, x):
+        return 1
+
+
+class gauss:
+    @classmethod
+    def calc(cls, x):
+        return np.exp(-x**2)
+
+    @classmethod
+    def grad(cls, x):
+        return -2 * x * np.exp(-x**2)
 
 
 activation_funcs = {  # pls update with other functions you add
     'sigmoid': sigmoid,
     'relu': relu,
     'tanh': tanh,
+    'sin': sin,
+    'identity': identity,
+    'gauss': gauss,
 }

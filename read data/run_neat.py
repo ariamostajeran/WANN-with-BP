@@ -1,9 +1,14 @@
 import os
 from functools import partial
+import numpy as np
 
 import neat                        # pip install neat-python
 import mnist                       # pip install mnist
 from sklearn.utils import shuffle  # pip install scikit-learn
+import skimage as ski                       # pip install scikit-image
+from scipy.ndimage import affine_transform  # pip install scipy
+
+PROCESS = True
 
 
 def eval_genomes(genomes, config, resample=False, num_samples=2000):
@@ -45,12 +50,35 @@ def eval_genome_async(genome, config, xy=None, total=None):
     return correct / total
 
 
-def prep_dataset(num_samples):
+def prep_dataset(num_samples=2000):
+    def moments(image):
+        c0, c1 = np.mgrid[:image.shape[0], :image.shape[1]]  # A trick in numPy to create a mesh grid
+        totalImage = np.sum(image)  # sum of pixels
+        m0 = np.sum(c0 * image) / totalImage  # mu_x
+        m1 = np.sum(c1 * image) / totalImage  # mu_y
+        m00 = np.sum((c0 - m0) ** 2 * image) / totalImage  # var(x)
+        m11 = np.sum((c1 - m1) ** 2 * image) / totalImage  # var(y)
+        m01 = np.sum((c0 - m0) * (c1 - m1) * image) / totalImage  # covariance(x,y)
+        mu_vector = np.array([m0, m1])  # Notice that these are \mu_x, \mu_y respectively
+        covariance_matrix = np.array([[m00, m01], [m01, m11]])  # Do you see a similarity between the covariance matrix
+        return mu_vector, covariance_matrix
+
+    def deskew(image):
+        c, v = moments(image)
+        alpha = v[0, 1] / v[0, 0]
+        affine = np.array([[1, 0], [alpha, 1]])
+        ocenter = np.array(image.shape) / 2.0
+        offset = c - np.dot(affine, ocenter)
+        img = affine_transform(image, affine, offset=offset)
+        return (img - img.min(initial=0)) / (img.max(initial=1) - img.min(initial=0))
+
     global xy, total
     x, y = shuffle(mnist.test_images(), mnist.test_labels(), n_samples=num_samples)
     total = len(y)
     xy = []
     for xi, yi in zip(x, y):
+        if PROCESS:
+            xi = ski.transform.resize(deskew(xi), (16, 16), preserve_range=True, anti_aliasing=False)
         xy.append((xi.flatten(), yi))
 
 
