@@ -129,9 +129,11 @@ class Net:
                 with open(f'{save_dir}/net_{epoch}.pkl', 'wb') as file:
                     pickle.dump(self, file)
             if x_test is not None and y_test is not None:
-                yield loss_batch(outputs, y_train), loss_batch(self.activate(x_test, batch=True), y_test)
+                outputs_test = self.activate(x_test, batch=True)
+                yield (loss_batch(outputs, y_train), accuracy(outputs, y_train)), \
+                      (loss_batch(outputs_test, y_test), accuracy(outputs_test, y_test))
             else:
-                yield loss_batch(outputs, y_train), None
+                yield (loss_batch(outputs, y_train), accuracy(outputs, y_train)), (None, None)
 
     @classmethod
     def from_genome(cls, genome, config):

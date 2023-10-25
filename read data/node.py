@@ -1,6 +1,5 @@
 import numpy as np
 from reprlib import recursive_repr
-import sys
 
 
 class Node:
@@ -54,7 +53,7 @@ class Node:
     def forward(self):
         # Calculate the weighted sum of inputs
         if self.pre_nodes:
-            weighted_sum = np.clip(sum([weight * pre.output for pre, weight in self.weights.items()]), sys.float_info.min, sys.float_info.max)
+            weighted_sum = sum([weight * pre.output for pre, weight in self.weights.items()])
         else:
             weighted_sum = self.input
 
@@ -72,7 +71,7 @@ class Node:
             weighted_sum = sum([post_node.weights[self] * post_node.gradient for post_node in self.post_nodes])
             weighted_sum += self.bias * self.gradient  # Include bias in the gradient calculation
             if self.activation:
-                self.gradient = np.clip(self.activation.grad(self.output) * weighted_sum, sys.float_info.min, sys.float_info.max)
+                self.gradient = self.activation.grad(self.output) * weighted_sum
             else:
                 # If there's no activation function, assume it's linear
                 self.gradient = weighted_sum

@@ -5,7 +5,7 @@ import neat
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-import skimage as ski                       # pip install scikit-image
+import skimage as ski  # pip install scikit-image
 from scipy.ndimage import affine_transform  # pip install scipy
 
 from net import Net
@@ -15,7 +15,7 @@ NUM_TRAIN = 20
 NUM_TEST = 20
 TRAIN_EPOCHS = 15
 SAVE_MODELS = False
-PROCESS = True
+PROCESS = False
 # CHECKPOINT = 'neat_pop_1159'  # leave empty for test fully-connected network
 CHECKPOINT = None  # leave empty for test fully-connected network
 
@@ -43,13 +43,17 @@ def prep_dataset():
         return (img - img.min(initial=0)) / (img.max(initial=1) - img.min(initial=0))
 
     for xt in x_train_np:
+        # deskewed does not converge!
+        xt = xt / 255
         if PROCESS:
-            x_train.append(ski.transform.resize(deskew(xt), (16, 16), preserve_range=True, anti_aliasing=False).flatten())
+            x_train.append(
+                ski.transform.resize(deskew(xt), (16, 16), preserve_range=True, anti_aliasing=False).flatten())
         else:
             x_train.append(xt.flatten())
     for xt in x_test_np:
         if PROCESS:
-            x_test.append(ski.transform.resize(deskew(xt), (16, 16), preserve_range=True, anti_aliasing=False).flatten())
+            x_test.append(
+                ski.transform.resize(deskew(xt), (16, 16), preserve_range=True, anti_aliasing=False).flatten())
         else:
             x_test.append(xt.flatten())
 
@@ -72,7 +76,6 @@ else:
     print(genome.size())  # (nodes, connections)
     net = Net.from_genome(genome, config)
 
-
 print('## before training:')
 for i in range(10):
     res = net(x_train[i])
@@ -80,26 +83,36 @@ for i in range(10):
 
 loss_list_train = []
 loss_list_test = []
-for train_loss, test_loss in net.train(x_train, y_train, epochs=TRAIN_EPOCHS, save=SAVE_MODELS, x_test=x_test,
-                                       y_test=y_test, lr=0.1):
+ac_list_train = []
+ac_list_test = []
+for (train_loss, train_ac), (test_loss, test_ac) in net.train(x_train, y_train, epochs=TRAIN_EPOCHS, save=SAVE_MODELS,
+                                                              x_test=x_test, y_test=y_test, lr=0.1):
     loss_list_train.append(train_loss)
     loss_list_test.append(test_loss)
-    print(f'\tloss: {train_loss}')
+    ac_list_train.append(train_ac)
+    ac_list_test.append(test_ac)
+    print(f'\tloss: {train_loss}\tac: {train_ac}')
 
 print('## after training:')
 for i in range(10):
     res = net(x_train[i])
     print(f'pred: {res.argmax()} true: {y_train[i]}')
 
-outputs = []
-for input in x_train:
-    outputs.append(net(input))
-
 matplotlib.use('TkAgg')  # temp fix for Pycharm
 plt.plot(loss_list_train, label='Training loss')
 plt.plot(loss_list_test, label='Test loss')
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
-plt.title(f'Train ac: {accuracy(outputs, y_train)} | Test ac: {accuracy([net(input) for input in x_test], y_test)}')
+plt.title(
+    f'Train ac: {accuracy([net(input) for input in x_train], y_train)} | Test ac: {accuracy([net(input) for input in x_test], y_test)}')
+plt.legend()
+plt.show()
+
+plt.plot(ac_list_train, label='Training accuracy')
+plt.plot(ac_list_test, label='Test accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title(
+    f'Train ac: {accuracy([net(input) for input in x_train], y_train)} | Test ac: {accuracy([net(input) for input in x_test], y_test)}')
 plt.legend()
 plt.show()

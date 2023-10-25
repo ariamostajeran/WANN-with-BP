@@ -6,7 +6,7 @@ def loss(preds, targets):
     if len(preds) != len(targets):
         raise ValueError("Number of predictions and targets must be the same.")
 
-    return -np.sum(targets * np.log(preds, where=(preds!=0)))
+    return -np.sum(targets * np.log(preds, where=(preds != 0)))
 
 
 def loss_batch(preds_lst, targets_lst):
@@ -14,7 +14,7 @@ def loss_batch(preds_lst, targets_lst):
     if len(preds_lst) != len(targets_lst):
         raise ValueError("Number of predictions and targets must be the same.")
 
-    return sum(-np.sum(targets * np.log(preds, where=(preds!=0))) for preds, targets in zip(preds_lst, targets_lst))
+    return sum([-np.sum(targets * np.log(preds, where=(preds != 0))) for preds, targets in zip(preds_lst, targets_lst)])
 
 
 def accuracy(preds, targets):
@@ -23,8 +23,7 @@ def accuracy(preds, targets):
 
     correct = 0
     for pred, target in zip(preds, targets):
-        pred = pred.argmax()
-        if pred == target:
+        if pred.argmax() == target:
             correct += 1
 
     return correct / len(targets)

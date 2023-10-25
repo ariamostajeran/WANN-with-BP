@@ -4,7 +4,7 @@ import numpy as np
 class sigmoid:
     @classmethod
     def calc(cls, x):
-        return 1 / (1 + np.exp(-x)) if x > 0 else np.exp(x) / (1+np.exp(x))
+        return (1 / (1 + np.exp(-x))) if (x >= 0) else (np.exp(x) / (1 + np.exp(x)))
 
     @classmethod
     def grad(cls, x):
